@@ -1,6 +1,11 @@
 # goreflector
 
-A lightweight, production-ready HTTP reverse proxy written in Go. Similar to `kubectl proxy` but works with any HTTP/HTTPS target.
+[![CI](https://github.com/maclarensg/goreflector/actions/workflows/ci.yml/badge.svg)](https://github.com/maclarensg/goreflector/actions/workflows/ci.yml)
+[![Release](https://github.com/maclarensg/goreflector/actions/workflows/release.yml/badge.svg)](https://github.com/maclarensg/goreflector/actions/workflows/release.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/maclarensg/goreflector)](https://goreportcard.com/report/github.com/maclarensg/goreflector)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A lightweight, production-ready HTTP reverse proxy written in Go. Securely expose internal, walled-garden web applications locally without public internet exposure.
 
 ## Documentation
 
