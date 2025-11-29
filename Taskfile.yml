@@ -1,0 +1,153 @@
+version: '3'
+
+vars:
+  BINARY_NAME: goreflector
+  COVERAGE_TARGET: 65
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the binary
+    cmds:
+      - go build -o {{.BINARY_NAME}} .
+    sources:
+      - '*.go'
+    generates:
+      - '{{.BINARY_NAME}}'
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test -v -race ./...
+
+  test:coverage:
+    desc: Run tests with coverage report
+    cmds:
+      - go test -coverprofile=coverage.out -covermode=atomic ./...
+      - go tool cover -func=coverage.out
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated at coverage.html"
+
+  test:unit:
+    desc: Run unit tests only
+    cmds:
+      - go test -v -run 'Test[^I]' ./...
+
+  test:integration:
+    desc: Run integration tests only
+    cmds:
+      - go test -v -run 'TestIntegration|TestRun' ./...
+
+  test:regression:
+    desc: Run regression tests
+    cmds:
+      - go test -v -run 'TestRegression' ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run --timeout=5m ./...
+
+  lint:fix:
+    desc: Run golangci-lint with auto-fix
+    cmds:
+      - golangci-lint run --fix --timeout=5m ./...
+
+  gosec:
+    desc: Run security scanner
+    cmds:
+      - gosec -fmt=text -out=gosec-report.txt ./...
+      - cat gosec-report.txt
+
+  format:
+    desc: Format code with gofmt
+    cmds:
+      - gofmt -w -s .
+      - go mod tidy
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  ci:
+    desc: Run full CI pipeline (format, vet, lint, gosec, test with coverage)
+    cmds:
+      - task: format
+      - task: vet
+      - task: lint
+      - task: gosec
+      - task: test:coverage
+      - cmd: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Total coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < {{.COVERAGE_TARGET}}" | bc -l) )); then
+            echo "Coverage ${COVERAGE}% is below target {{.COVERAGE_TARGET}}%"
+            exit 1
+          fi
+        silent: false
+
+  clean:
+    desc: Clean build artifacts and test files
+    cmds:
+      - rm -f {{.BINARY_NAME}}
+      - rm -f coverage.out coverage.html
+      - rm -f gosec-report.txt
+      - go clean -testcache
+
+  install:
+    desc: Install the binary to $GOPATH/bin
+    cmds:
+      - go install .
+
+  run:
+    desc: Run the proxy (requires TARGET_URL env var)
+    cmds:
+      - |
+        if [ -z "$TARGET_URL" ]; then
+          echo "ERROR: TARGET_URL environment variable is required"
+          echo "Usage: TARGET_URL=https://example.com task run"
+          exit 1
+        fi
+        go run . -p 8080 -v $TARGET_URL
+
+  qa:manual:
+    desc: Run manual QA tests against a test backend
+    cmds:
+      - |
+        echo "Starting test backend on port 9999..."
+        (cd /tmp && python3 -m http.server 9999 &)
+        PID=$!
+        sleep 2
+
+        echo "Starting goreflector proxy on port 8080..."
+        ./{{.BINARY_NAME}} -p 8080 -v http://localhost:9999 &
+        PROXY_PID=$!
+        sleep 2
+
+        echo "Running QA tests..."
+        echo "Test 1: GET request"
+        curl -s http://localhost:8080/ | head -5
+
+        echo "\nTest 2: Check headers"
+        curl -v http://localhost:8080/ 2>&1 | grep -i "x-forwarded"
+
+        echo "\nCleaning up..."
+        kill $PROXY_PID
+        kill $PID
+
+  benchmark:
+    desc: Run benchmarks
+    cmds:
+      - go test -bench=. -benchmem ./...
+
+  deps:
+    desc: Download and tidy dependencies
+    cmds:
+      - go mod download
+      - go mod tidy
+      - go mod verify
