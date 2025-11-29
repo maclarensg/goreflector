@@ -32,7 +32,7 @@ This directory contains automated CI/CD workflows for goreflector.
    - Fails on security vulnerabilities
 
 **Coverage Requirement:**
-The CI enforces a minimum of **80% test coverage**. PRs with lower coverage will fail.
+The CI enforces a minimum of **65% test coverage**. PRs with lower coverage will fail.
 
 ### 2. Release Workflow (`release.yml`)
 
@@ -140,7 +140,7 @@ task test:coverage
 go tool cover -html=coverage.out
 ```
 
-Coverage must be ≥ 80% for CI to pass.
+Coverage must be ≥ 65% for CI to pass.
 
 ### Linter Fails
 
