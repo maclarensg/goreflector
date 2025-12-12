@@ -547,6 +547,178 @@ func TestServeHTTPLogging(t *testing.T) {
 	}
 }
 
+func TestCopyHeadersWithCustomHost(t *testing.T) {
+	var receivedHost string
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHost = r.Host
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	backendURL := mustParseURL(backend.URL)
+	config := ProxyConfig{
+		ListenAddr: ":8080",
+		TargetURL:  backendURL,
+		CustomHeaders: map[string]string{
+			"Host": "example.com",
+		},
+	}
+	logger := log.New(io.Discard, "", 0)
+	proxy, _ := NewProxy(config, logger)
+
+	req := httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+	w := httptest.NewRecorder()
+
+	proxy.ServeHTTP(w, req)
+
+	if receivedHost != "example.com" {
+		t.Errorf("expected Host header 'example.com', got '%s'", receivedHost)
+	}
+}
+
+func TestCopyHeadersWithCustomHeaders(t *testing.T) {
+	var receivedHeaders http.Header
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	backendURL := mustParseURL(backend.URL)
+	config := ProxyConfig{
+		ListenAddr: ":8080",
+		TargetURL:  backendURL,
+		CustomHeaders: map[string]string{
+			"Authorization": "Bearer token123",
+			"X-API-Key":     "key456",
+			"X-Custom":      "custom-value",
+		},
+	}
+	logger := log.New(io.Discard, "", 0)
+	proxy, _ := NewProxy(config, logger)
+
+	req := httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+	w := httptest.NewRecorder()
+
+	proxy.ServeHTTP(w, req)
+
+	if receivedHeaders.Get("Authorization") != "Bearer token123" {
+		t.Errorf("expected Authorization 'Bearer token123', got '%s'", receivedHeaders.Get("Authorization"))
+	}
+	if receivedHeaders.Get("X-API-Key") != "key456" {
+		t.Errorf("expected X-API-Key 'key456', got '%s'", receivedHeaders.Get("X-API-Key"))
+	}
+	if receivedHeaders.Get("X-Custom") != "custom-value" {
+		t.Errorf("expected X-Custom 'custom-value', got '%s'", receivedHeaders.Get("X-Custom"))
+	}
+}
+
+func TestCopyHeadersWithHostAndCustomHeaders(t *testing.T) {
+	var receivedHost string
+	var receivedHeaders http.Header
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHost = r.Host
+		receivedHeaders = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	backendURL := mustParseURL(backend.URL)
+	config := ProxyConfig{
+		ListenAddr: ":8080",
+		TargetURL:  backendURL,
+		CustomHeaders: map[string]string{
+			"Host":          "example.com",
+			"Authorization": "Bearer token",
+			"X-Custom":      "value",
+		},
+	}
+	logger := log.New(io.Discard, "", 0)
+	proxy, _ := NewProxy(config, logger)
+
+	req := httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+	w := httptest.NewRecorder()
+
+	proxy.ServeHTTP(w, req)
+
+	if receivedHost != "example.com" {
+		t.Errorf("expected Host 'example.com', got '%s'", receivedHost)
+	}
+	if receivedHeaders.Get("Authorization") != "Bearer token" {
+		t.Errorf("expected Authorization 'Bearer token', got '%s'", receivedHeaders.Get("Authorization"))
+	}
+	if receivedHeaders.Get("X-Custom") != "value" {
+		t.Errorf("expected X-Custom 'value', got '%s'", receivedHeaders.Get("X-Custom"))
+	}
+}
+
+func TestCopyHeadersCustomOverridesOriginal(t *testing.T) {
+	var receivedHeaders http.Header
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	backendURL := mustParseURL(backend.URL)
+	config := ProxyConfig{
+		ListenAddr: ":8080",
+		TargetURL:  backendURL,
+		CustomHeaders: map[string]string{
+			"User-Agent": "CustomAgent/1.0",
+		},
+	}
+	logger := log.New(io.Discard, "", 0)
+	proxy, _ := NewProxy(config, logger)
+
+	req := httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+	req.Header.Set("User-Agent", "OriginalAgent/1.0")
+	w := httptest.NewRecorder()
+
+	proxy.ServeHTTP(w, req)
+
+	// Custom header should override the original
+	if receivedHeaders.Get("User-Agent") != "CustomAgent/1.0" {
+		t.Errorf("expected User-Agent 'CustomAgent/1.0', got '%s'", receivedHeaders.Get("User-Agent"))
+	}
+}
+
+func TestCopyHeadersHostCaseInsensitive(t *testing.T) {
+	// Test that "host", "Host", "HOST" all work correctly
+	testCases := []string{"host", "Host", "HOST", "HoSt"}
+
+	for _, headerName := range testCases {
+		t.Run(headerName, func(t *testing.T) {
+			var receivedHost string
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedHost = r.Host
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer backend.Close()
+
+			backendURL := mustParseURL(backend.URL)
+			config := ProxyConfig{
+				ListenAddr: ":8080",
+				TargetURL:  backendURL,
+				CustomHeaders: map[string]string{
+					headerName: "example.com",
+				},
+			}
+			logger := log.New(io.Discard, "", 0)
+			proxy, _ := NewProxy(config, logger)
+
+			req := httptest.NewRequest("GET", "http://localhost:8080/test", nil)
+			w := httptest.NewRecorder()
+
+			proxy.ServeHTTP(w, req)
+
+			if receivedHost != "example.com" {
+				t.Errorf("expected Host 'example.com', got '%s'", receivedHost)
+			}
+		})
+	}
+}
+
 func mustParseURL(rawURL string) *url.URL {
 	u, err := url.Parse(rawURL)
 	if err != nil {

@@ -13,9 +13,10 @@ import (
 )
 
 type ProxyConfig struct {
-	ListenAddr string
-	TargetURL  *url.URL
-	Timeout    time.Duration
+	ListenAddr    string
+	TargetURL     *url.URL
+	Timeout       time.Duration
+	CustomHeaders map[string]string
 }
 
 type Proxy struct {
@@ -120,6 +121,7 @@ func (p *Proxy) buildTargetURL(r *http.Request) *url.URL {
 }
 
 func (p *Proxy) copyHeaders(src *http.Request, dst *http.Request) {
+	// Copy original request headers (except hop-by-hop headers)
 	for key, values := range src.Header {
 		if shouldSkipHeader(key) {
 			continue
@@ -129,7 +131,18 @@ func (p *Proxy) copyHeaders(src *http.Request, dst *http.Request) {
 		}
 	}
 
+	// Set default Host header to target URL's host
 	dst.Host = p.config.TargetURL.Host
+
+	// Apply custom headers (these override any existing headers)
+	for name, value := range p.config.CustomHeaders {
+		// Special handling for Host header - must be set via dst.Host
+		if http.CanonicalHeaderKey(name) == "Host" {
+			dst.Host = value
+		} else {
+			dst.Header.Set(name, value)
+		}
+	}
 }
 
 func (p *Proxy) addForwardedHeaders(src *http.Request, dst *http.Request) {

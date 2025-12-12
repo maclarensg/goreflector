@@ -314,6 +314,150 @@ func TestValidOptionsEndToEnd(t *testing.T) {
 	}
 }
 
+func TestParseHeaders(t *testing.T) {
+	tests := []struct {
+		name          string
+		headers       []string
+		expected      map[string]string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "empty headers",
+			headers:     []string{},
+			expected:    map[string]string{},
+			expectError: false,
+		},
+		{
+			name:        "single header",
+			headers:     []string{"Host: example.com"},
+			expected:    map[string]string{"Host": "example.com"},
+			expectError: false,
+		},
+		{
+			name:        "multiple headers",
+			headers:     []string{"Host: example.com", "Authorization: Bearer token123"},
+			expected:    map[string]string{"Host": "example.com", "Authorization": "Bearer token123"},
+			expectError: false,
+		},
+		{
+			name:        "header with spaces",
+			headers:     []string{"X-Custom-Header:   value with spaces  "},
+			expected:    map[string]string{"X-Custom-Header": "value with spaces"},
+			expectError: false,
+		},
+		{
+			name:        "header with colon in value",
+			headers:     []string{"Authorization: Bearer: token:with:colons"},
+			expected:    map[string]string{"Authorization": "Bearer: token:with:colons"},
+			expectError: false,
+		},
+		{
+			name:          "invalid header no colon",
+			headers:       []string{"InvalidHeader"},
+			expectError:   true,
+			errorContains: "invalid header format",
+		},
+		{
+			name:          "invalid header empty name",
+			headers:       []string{": value"},
+			expectError:   true,
+			errorContains: "header name cannot be empty",
+		},
+		{
+			name:        "header with empty value",
+			headers:     []string{"X-Empty: "},
+			expected:    map[string]string{"X-Empty": ""},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseHeaders(tt.headers)
+
+			if tt.expectError && err == nil {
+				t.Error("expected error but got nil")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if tt.expectError && err != nil && tt.errorContains != "" {
+				if !contains(err.Error(), tt.errorContains) {
+					t.Errorf("expected error to contain '%s', got '%s'", tt.errorContains, err.Error())
+				}
+			}
+			if !tt.expectError {
+				if len(result) != len(tt.expected) {
+					t.Errorf("expected %d headers, got %d", len(tt.expected), len(result))
+				}
+				for key, expectedValue := range tt.expected {
+					if actualValue, ok := result[key]; !ok {
+						t.Errorf("expected header '%s' not found", key)
+					} else if actualValue != expectedValue {
+						t.Errorf("expected header '%s' to have value '%s', got '%s'", key, expectedValue, actualValue)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestParseFlagsWithHeaders(t *testing.T) {
+	oldArgs := os.Args
+	defer func() {
+		os.Args = oldArgs
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	}()
+
+	os.Args = []string{"goreflector", "-H", "Host: example.com", "https://1.2.3.4"}
+	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+
+	opts, err := parseFlags()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(opts.Headers) != 1 {
+		t.Errorf("expected 1 header, got %d", len(opts.Headers))
+	}
+	if opts.Headers[0] != "Host: example.com" {
+		t.Errorf("expected header 'Host: example.com', got '%s'", opts.Headers[0])
+	}
+}
+
+func TestParseFlagsWithMultipleHeaders(t *testing.T) {
+	oldArgs := os.Args
+	defer func() {
+		os.Args = oldArgs
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	}()
+
+	os.Args = []string{"goreflector", "-H", "Host: example.com", "-H", "Authorization: Bearer token", "-H", "X-API-Key: key123", "https://api.example.com"}
+	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+
+	opts, err := parseFlags()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(opts.Headers) != 3 {
+		t.Errorf("expected 3 headers, got %d", len(opts.Headers))
+	}
+
+	expectedHeaders := []string{
+		"Host: example.com",
+		"Authorization: Bearer token",
+		"X-API-Key: key123",
+	}
+
+	for i, expected := range expectedHeaders {
+		if opts.Headers[i] != expected {
+			t.Errorf("expected header %d to be '%s', got '%s'", i, expected, opts.Headers[i])
+		}
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || containsHelper(s, substr))
 }
