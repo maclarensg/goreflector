@@ -92,11 +92,43 @@ npm run dev
 # Configure frontend to use http://localhost:8080
 ```
 
+### Custom Headers (Host Override, Authentication)
+
+Override or inject custom headers for advanced scenarios:
+
+```bash
+# Override Host header (useful for virtual host testing, SNI bypass)
+./goreflector -p 8080 -H "Host: example.com" https://1.2.3.4/
+
+# Add authentication headers
+./goreflector -p 8080 -H "Authorization: Bearer secret123" https://api.example.com
+
+# Multiple custom headers
+./goreflector -p 8080 \
+  -H "Host: api.example.com" \
+  -H "Authorization: Bearer token123" \
+  -H "X-API-Key: key456" \
+  https://192.168.1.100/
+
+# Override User-Agent for testing
+./goreflector -p 8080 -H "User-Agent: CustomBot/1.0" https://api.example.com
+```
+
+**Use Cases:**
+- **Host header override**: Test virtual hosts by connecting to an IP but sending a different Host header
+- **SNI bypass**: Connect to IP addresses while presenting the correct hostname
+- **Custom authentication**: Add API keys, Bearer tokens, or other auth headers
+- **Header spoofing**: Test how backends handle different User-Agents or custom headers
+- **Load balancer testing**: Hit specific backend servers by IP with correct Host header
+
 ## Command Line Options
 
 ```bash
 # Basic
 ./goreflector -p 8080 https://example.com
+
+# With custom headers
+./goreflector -p 8080 -H "Host: example.com" https://1.2.3.4/
 
 # With custom timeout (60 seconds)
 ./goreflector -p 8080 -t 60 https://slow-api.com
@@ -104,8 +136,11 @@ npm run dev
 # With verbose logging
 ./goreflector -p 8080 -v https://example.com
 
-# All options
-./goreflector -p 9000 -t 45 -v https://api.example.com
+# All options combined
+./goreflector -p 9000 -t 45 -v \
+  -H "Host: api.example.com" \
+  -H "Authorization: Bearer token" \
+  https://192.168.1.100/
 ```
 
 ## Real-World Examples
