@@ -68,9 +68,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-12-12
+
+### Added
+- **Custom header injection** via `-H` flag for advanced use cases
+  - Support for multiple `-H` flags to inject multiple headers
+  - Override any header including Host, Authorization, User-Agent, etc.
+  - Special handling for Host header (uses `dst.Host` for proper HTTP behavior)
+  - Case-insensitive Host header matching
+  - Custom headers override original request headers
+  - Format validation with clear error messages
+- Enhanced CLI help with custom header usage examples
+- 13 new comprehensive unit tests for header functionality:
+  - `TestParseHeaders` with 8 sub-tests for various header formats
+  - `TestParseFlagsWithHeaders` and `TestParseFlagsWithMultipleHeaders`
+  - 5 integration tests for custom header injection scenarios
+  - Case-insensitive Host header testing
+  - Header override behavior verification
+- Improved test coverage from 67.4% to 69.2%
+- Full backward compatibility maintained
+
+### Changed
+- Updated documentation with custom header examples:
+  - README.md with usage examples and feature list
+  - QUICKSTART.md with real-world scenarios
+  - Enhanced CLI help text
+
+### Use Cases
+- **Host header override**: Test virtual hosts, SNI bypass, connect to IPs with custom Host
+- **Custom authentication**: Inject Authorization, X-API-Key, or Bearer tokens
+- **Header spoofing**: Test with different User-Agents or custom headers
+- **Load balancer testing**: Hit specific backends by IP with correct Host header
+- **Security testing**: Advanced penetration testing and security assessments
+
+### Technical Details
+- Added `Headers []string` field to `Options` struct
+- Implemented `headerFlags` type for multi-value flag support
+- Added `parseHeaders()` function with format validation
+- Extended `ProxyConfig` with `CustomHeaders map[string]string`
+- Modified `copyHeaders()` to apply custom headers after original headers
+- Total changes: 4 files, 379 lines added
+
 ### Planned Features
 - HTTPS support on listen side (optional)
-- Custom header injection/modification
 - Request/response logging to file
 - Metrics and health check endpoints
 - Rate limiting
@@ -82,6 +122,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## Version History
+
+### [1.1.0] - 2025-12-12
+Feature release adding custom header injection via `-H` flag for advanced proxy scenarios including Host header override, authentication, and security testing.
 
 ### [1.0.0] - 2025-11-28
 First production-ready release with full feature set, comprehensive testing, and documentation.

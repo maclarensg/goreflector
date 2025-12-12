@@ -18,6 +18,7 @@ A lightweight, production-ready HTTP reverse proxy written in Go. Securely expos
 ## Features
 
 - ✅ HTTP reverse proxy for HTTP and HTTPS targets
+- ✅ **Custom header injection** via `-H` flag (new!)
 - ✅ Automatic X-Forwarded-* header injection
 - ✅ Host header modification for proper routing
 - ✅ Full path and query string preservation
@@ -25,7 +26,7 @@ A lightweight, production-ready HTTP reverse proxy written in Go. Securely expos
 - ✅ Request/response body streaming
 - ✅ Configurable timeouts
 - ✅ Verbose logging mode
-- ✅ Production-ready with comprehensive tests (67.4% coverage)
+- ✅ Production-ready with comprehensive tests (69.2% coverage)
 - ✅ Security scanned with gosec (0 issues)
 - ✅ Race-condition tested
 
@@ -74,19 +75,39 @@ This starts a proxy server on `http://localhost:8080` that forwards all requests
 ./goreflector -p 8080 -t 60 https://api.example.com
 ```
 
+### Custom headers (Host override, Authorization, etc.)
+
+```bash
+# Override Host header (useful for virtual host testing, SNI bypass)
+./goreflector -p 8080 -H "Host: example.com" https://1.2.3.4/
+
+# Add authentication headers
+./goreflector -p 8080 -H "Authorization: Bearer token123" https://api.example.com
+
+# Multiple custom headers
+./goreflector -p 8080 \
+  -H "Host: api.example.com" \
+  -H "Authorization: Bearer token123" \
+  -H "X-API-Key: key456" \
+  https://192.168.1.100/
+```
+
 ### All options
 
 ```
 Usage: goreflector [options] <target-url>
 
 Options:
+  -H value             Custom header (can be used multiple times, format: 'Name: Value')
   -p, --port int       Port to listen on (default: 8080)
   -t, --timeout int    Request timeout in seconds (default: 30)
   -v, --verbose        Verbose logging
   --version            Show version
 
-Example:
+Examples:
   goreflector -p 8080 https://example.com
+  goreflector -H "Host: example.com" https://1.2.3.4/
+  goreflector -H "Authorization: Bearer token" https://api.example.com
 ```
 
 ## Examples
